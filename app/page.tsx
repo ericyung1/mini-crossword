@@ -22,14 +22,28 @@ export default function Home() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader>
-              <CardTitle>Today&apos;s Puzzle</CardTitle>
+              <CardTitle>Phase 2 - Enhanced</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="mb-4 text-sm text-gray-600">
-                Start your daily crossword challenge
+                Smart clue highlighting, auto-advance, keyboard navigation, timer
               </p>
               <Link href="/play">
-                <Button className="w-full">Play Now</Button>
+                <Button className="w-full">Play Phase 2</Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="ring-2 ring-blue-300 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="text-blue-800">Phase 3 - Professional ⭐</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-sm text-blue-700">
+                Difficulty levels, daily puzzles, hints, statistics, achievements
+              </p>
+              <Link href="/play-v3">
+                <Button className="w-full bg-blue-600 hover:bg-blue-700">Play Phase 3</Button>
               </Link>
             </CardContent>
           </Card>
