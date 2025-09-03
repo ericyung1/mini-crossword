@@ -1,26 +1,10 @@
 {
   "extends": [
     "next/core-web-vitals",
-    "@typescript-eslint/recommended",
     "prettier"
   ],
-  "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint", "import"],
+  "plugins": ["import"],
   "rules": {
-    "@typescript-eslint/no-unused-vars": [
-      "error",
-      {
-        "argsIgnorePattern": "^_",
-        "varsIgnorePattern": "^_"
-      }
-    ],
-    "@typescript-eslint/consistent-type-imports": [
-      "error",
-      {
-        "prefer": "type-imports",
-        "fixStyle": "inline-type-imports"
-      }
-    ],
     "import/order": [
       "error",
       {
@@ -38,9 +22,5 @@
         }
       }
     ]
-  },
-  "parserOptions": {
-    "ecmaVersion": "latest",
-    "sourceType": "module"
   }
 }

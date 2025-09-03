@@ -38,10 +38,64 @@ Before you begin, ensure you have the following installed:
    # Copy the example environment file
    cp .env.example .env.local
    
-   # Edit .env.local and add your environment variables
-   # Example:
-   # OPENAI_API_KEY=your_openai_api_key_here
+   # Edit .env.local with your actual values
+   # IMPORTANT: Never use NEXT_PUBLIC_* for secrets!
    ```
+
+## 🔐 Environment Variables
+
+This project uses server-side environment validation with Zod for type safety and fail-fast error handling.
+
+### **Local Development Setup**
+
+1. **Copy the environment template**:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. **Edit `.env.local`** with your actual values:
+   ```bash
+   # Required for production (optional for development)
+   NODE_ENV=development
+   
+   # Optional API keys
+   OPENAI_API_KEY=your_actual_openai_key_here
+   DATABASE_URL=your_database_connection_string
+   NEXTAUTH_SECRET=your_nextauth_secret_for_production
+   ```
+
+3. **Security Rules**:
+   - ✅ **DO**: Use server-side environment variables (no `NEXT_PUBLIC_` prefix)
+   - ❌ **DON'T**: Expose secrets with `NEXT_PUBLIC_*` variables
+   - ✅ **DO**: Keep secrets in `.env.local` (ignored by Git)
+   - ❌ **DON'T**: Commit real secrets to version control
+
+### **Vercel Deployment Setup**
+
+1. **In your Vercel Project Dashboard**:
+   - Go to **Settings** → **Environment Variables**
+   - Add each variable individually:
+
+2. **Production Environment Variables**:
+   ```bash
+   NODE_ENV=production
+   OPENAI_API_KEY=your_production_openai_key
+   DATABASE_URL=your_production_database_url
+   NEXTAUTH_SECRET=your_production_nextauth_secret
+   ```
+
+3. **Environment-Specific Variables**:
+   - **Production**: Set all required variables
+   - **Preview**: Can use same as production or separate staging values
+   - **Development**: Uses your local `.env.local` file
+
+### **Environment Validation**
+
+The app uses `src/env.ts` to validate environment variables at startup:
+- ✅ **Type-safe**: Full TypeScript support
+- ✅ **Fail-fast**: App won't start with invalid/missing required vars
+- ✅ **Server-only**: Never exposes secrets to the client
+- ✅ **Optional keys**: OPENAI_API_KEY and others are optional for development
 
 ## 📜 Available Scripts
 
