@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Puzzle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,9 @@ export default function Home() {
               <p className="mb-4 text-sm text-gray-600">
                 Start your daily crossword challenge
               </p>
-              <Button className="w-full">Play Now</Button>
+              <Link href="/play">
+                <Button className="w-full">Play Now</Button>
+              </Link>
             </CardContent>
           </Card>
 

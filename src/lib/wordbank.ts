@@ -14,7 +14,14 @@ const WORDS_2: string[] = [
   "IN", "IS", "IT", "ME", "MY", "NO", "OF", "ON", "OR", "SO",
   "TO", "UP", "US", "WE", "AD", "AH", "AL", "AW", "AX", "AY",
   "EH", "EL", "EM", "EN", "ER", "EX", "HI", "HM", "LO", "OH",
-  "OW", "OX", "OY", "SH", "SI", "UM", "UN", "UT", "WO", "YE"
+  "OW", "OX", "OY", "SH", "SI", "UM", "UN", "UT", "WO", "YE",
+  
+  // Common crossword 2-letter words
+  "AB", "AG", "BA", "BI", "BO", "DA", "ED", "EF", "ET", "FA",
+  "FE", "GI", "HA", "HO", "ID", "JA", "JO", "KA", "KI", "LA",
+  "LI", "MA", "MI", "MU", "NA", "NU", "OD", "OE", "OP", "OS",
+  "PA", "PE", "PI", "QI", "RE", "TA", "TI", "UH", "UT", "WO",
+  "XI", "XU", "YA", "YE", "YO", "ZA", "ZO"
 ];
 
 /**
@@ -35,7 +42,18 @@ const WORDS_3: string[] = [
   "RAN", "RAT", "RAW", "RED", "RUN", "SAD", "SAT", "SAW", "SAY", "SEA",
   "SEE", "SET", "SHE", "SIT", "SIX", "SKY", "SUN", "TAX", "TEA", "TEN",
   "THE", "TOO", "TOP", "TOY", "TRY", "TWO", "USE", "VAN", "WAR", "WAS",
-  "WAY", "WET", "WHO", "WHY", "WIN", "WON", "YES", "YET", "YOU", "ZOO"
+  "WAY", "WET", "WHO", "WHY", "WIN", "WON", "YES", "YET", "YOU", "ZOO",
+  
+  // Additional common 3-letter crossword words
+  "ABS", "ACH", "ADS", "AFT", "AGA", "AGO", "AHS", "AID", "ALE", "AMP",
+  "APT", "ARC", "ARE", "ARF", "ARK", "ARS", "ASH", "ASS", "ATE", "AWE",
+  "BAM", "BAN", "BAR", "BAY", "BED", "BEL", "BET", "BIB", "BID", "BIN",
+  "BOA", "BOB", "BOG", "BOW", "BOX", "BRA", "BRO", "BUD", "BUG", "BUM",
+  "BUN", "BUS", "BUT", "BUY", "BYE", "CAB", "CAD", "CAM", "CAN", "CAP",
+  "CAR", "CAT", "CAW", "COB", "COD", "COG", "COP", "COT", "COW", "COX",
+  "COY", "COZ", "CRY", "CUB", "CUD", "CUE", "CUP", "CUR", "CUT", "DAB",
+  "DAD", "DAM", "DAY", "DEN", "DEW", "DID", "DIE", "DIG", "DIM", "DIN",
+  "DOC", "DOG", "DOT", "DRY", "DUB", "DUD", "DUE", "DUG", "DUN", "DYE"
 ];
 
 /**
