@@ -1,19 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Puzzle as PuzzleIcon, RotateCcw, CheckCircle, Eye, Trash2 } from "lucide-react";
+import { Puzzle as PuzzleIcon, RotateCcw, CheckCircle, Eye, Trash2, Trophy } from "lucide-react";
 
-import type { Puzzle } from "@/types/crossword";
+import type { Puzzle, Clue } from "@/types/crossword";
 import { generatePuzzle } from "@/lib/generator";
-import { isPuzzleSolved, getPuzzleCompletionPercentage } from "@/lib/validation";
+import { isPuzzleSolved, getPuzzleCompletionPercentage, cellsForClue } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BasicCrosswordGrid } from "@/components/basic-crossword-grid";
 import { BasicClueList } from "@/components/basic-clue-list";
+import { GameTimer } from "@/components/game-timer";
 
 export default function PlayPage() {
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
+  const [selectedClue, setSelectedClue] = useState<Clue | undefined>();
   const [showSolution, setShowSolution] = useState(false);
+  const [gameTime, setGameTime] = useState(0);
+  const [isGameActive, setIsGameActive] = useState(false);
 
   useEffect(() => {
     // Generate initial puzzle
@@ -24,7 +28,15 @@ export default function PlayPage() {
     const seed = `puzzle-${Date.now()}`;
     const newPuzzle = generatePuzzle(seed);
     setPuzzle(newPuzzle);
+    setSelectedClue(undefined);
     setShowSolution(false);
+    setGameTime(0);
+    setIsGameActive(true);
+    
+    // Auto-select first across clue
+    if (newPuzzle.clues.across.length > 0) {
+      setSelectedClue(newPuzzle.clues.across[0]);
+    }
   };
 
   const handleRevealSolution = () => {
@@ -39,6 +51,7 @@ export default function PlayPage() {
     
     setPuzzle({ ...puzzle, grid: solvedGrid });
     setShowSolution(true);
+    setIsGameActive(false);
   };
 
   const handleClearPuzzle = () => {
@@ -53,6 +66,7 @@ export default function PlayPage() {
     
     setPuzzle({ ...puzzle, grid: clearedGrid });
     setShowSolution(false);
+    setIsGameActive(true);
   };
 
   const handleCheckAnswers = () => {
@@ -60,6 +74,25 @@ export default function PlayPage() {
     
     // Just trigger a re-render to show correct/incorrect colors
     setPuzzle({ ...puzzle });
+  };
+
+  const handleClueSelect = (clue: Clue) => {
+    setSelectedClue(clue);
+    
+    // Jump to first cell of the clue
+    const cells = cellsForClue(puzzle!, clue);
+    if (cells.length > 0) {
+      // This will be handled by the grid component
+    }
+  };
+
+  const handlePuzzleChange = (newPuzzle: Puzzle) => {
+    setPuzzle(newPuzzle);
+    
+    // Check if puzzle is now solved
+    if (isPuzzleSolved(newPuzzle) && isGameActive) {
+      setIsGameActive(false);
+    }
   };
 
   if (!puzzle) {
@@ -88,19 +121,40 @@ export default function PlayPage() {
             <h1 className="text-4xl font-bold text-gray-900">Mini Crossword</h1>
           </div>
           <p className="text-lg text-gray-600">
-            Phase 1 Test - Basic Playable Version
+            Phase 2 - Enhanced Interactive Experience
           </p>
         </header>
 
         {/* Status */}
         {isSolved && (
           <div className="mb-6 text-center">
-            <div className="inline-flex items-center gap-2 bg-green-100 border border-green-300 rounded-lg px-4 py-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <span className="text-green-800 font-semibold">Puzzle Solved! 🎉</span>
+            <div className="inline-flex items-center gap-3 bg-green-100 border border-green-300 rounded-lg px-6 py-3">
+              <Trophy className="h-6 w-6 text-green-600" />
+              <div className="text-center">
+                <div className="text-green-800 font-semibold text-lg">Puzzle Solved! 🎉</div>
+                <div className="text-green-700 text-sm">
+                  Completed in {Math.floor(gameTime / 60)}:{(gameTime % 60).toString().padStart(2, '0')}
+                </div>
+              </div>
             </div>
           </div>
         )}
+
+        {/* Timer and Stats */}
+        <div className="mb-6 flex justify-center items-center gap-6">
+          <GameTimer 
+            isActive={isGameActive && !isSolved} 
+            onTimeUpdate={setGameTime}
+          />
+          <div className="text-sm text-gray-600">
+            {completionPercentage}% Complete
+          </div>
+          {selectedClue && (
+            <div className="text-sm text-gray-600">
+              Current: {selectedClue.number} {selectedClue.direction.toLowerCase()}
+            </div>
+          )}
+        </div>
 
         {/* Controls */}
         <div className="mb-6 flex justify-center gap-4">
@@ -130,15 +184,19 @@ export default function PlayPage() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Crossword Grid</span>
-                  <span className="text-sm font-normal text-gray-600">
-                    {completionPercentage}% Complete
-                  </span>
+                  {selectedClue && (
+                    <span className="text-sm font-normal text-blue-600">
+                      {selectedClue.number} {selectedClue.direction}: {selectedClue.text}
+                    </span>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex justify-center">
                 <BasicCrosswordGrid
                   puzzle={puzzle}
-                  onPuzzleChange={setPuzzle}
+                  onPuzzleChange={handlePuzzleChange}
+                  selectedClue={selectedClue}
+                  onClueSelect={handleClueSelect}
                 />
               </CardContent>
             </Card>
@@ -155,12 +213,16 @@ export default function PlayPage() {
                   clues={puzzle.clues.across}
                   title="Across"
                   puzzle={puzzle}
+                  selectedClue={selectedClue}
+                  onClueSelect={handleClueSelect}
                 />
                 
                 <BasicClueList
                   clues={puzzle.clues.down}
                   title="Down"
                   puzzle={puzzle}
+                  selectedClue={selectedClue}
+                  onClueSelect={handleClueSelect}
                 />
               </CardContent>
             </Card>
@@ -171,12 +233,12 @@ export default function PlayPage() {
                 <CardTitle>How to Play</CardTitle>
               </CardHeader>
               <CardContent className="text-sm space-y-2">
-                <p>• Click on a cell to select it</p>
-                <p>• Type letters to fill cells</p>
-                <p>• Use Backspace to clear</p>
-                <p>• Green = correct answer</p>
-                <p>• Red = incorrect answer</p>
-                <p>• Click "Check Answers" to validate</p>
+                <p>• <strong>Click cells</strong> to select and highlight clues</p>
+                <p>• <strong>Type letters</strong> - auto-advances to next cell</p>
+                <p>• <strong>Arrow keys</strong> to navigate grid</p>
+                <p>• <strong>Click clues</strong> to jump to that word</p>
+                <p>• <strong>Backspace</strong> to clear and go back</p>
+                <p>• <strong>Colors:</strong> Blue = selected, Green = correct, Red = wrong</p>
               </CardContent>
             </Card>
 
