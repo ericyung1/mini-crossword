@@ -187,6 +187,32 @@ export default function TestGeneratorPage() {
     }
   };
 
+  const runMinimalTest = async () => {
+    setLoading(true);
+    setError(null);
+    
+    console.log('🧪 Starting minimal test - testing word bank only - check browser console!');
+    
+    try {
+      const response = await fetch('/api/test-minimal');
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setError(null);
+        console.log('✅ Minimal test succeeded!', data.details);
+        alert(`Minimal Test Passed!\n\nWord Bank Stats:\n- 3-letter words: ${data.details?.totalWords3 || 'N/A'}\n- Pattern matches: ${data.details?.patternMatches || 'N/A'}\n- Sample words: ${data.details?.sampleWords?.join(', ') || 'N/A'}`);
+      } else {
+        setError(data.error || 'Minimal test failed');
+        console.log('❌ Minimal test failed:', data.error);
+      }
+    } catch (err) {
+      setError('Network error');
+      console.log('💥 Minimal test network error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const runBenchmark = async () => {
     setLoading(true);
     setError(null);
@@ -265,39 +291,46 @@ export default function TestGeneratorPage() {
         
         {/* Controls */}
         <div className="bg-white p-6 rounded-lg shadow mb-8">
-          <div className="flex gap-4 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
             <button
               onClick={generatePuzzle}
               disabled={loading}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
             >
               {loading ? 'Generating...' : 'Generate Puzzle (Complex)'}
             </button>
             <button
               onClick={() => generateSimplePuzzle()}
               disabled={loading}
-              className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 text-sm"
             >
               {loading ? 'Generating...' : 'Generate Simple'}
             </button>
             <button
               onClick={() => generateUnlimitedPuzzle()}
               disabled={loading}
-              className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 text-sm"
             >
               {loading ? 'Testing...' : 'Test Unlimited (No Timeout)'}
             </button>
             <button
               onClick={() => generateDiagnosticPuzzle()}
               disabled={loading}
-              className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+              className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 text-sm"
             >
               {loading ? 'Testing...' : 'Diagnostic (Simple Template)'}
             </button>
             <button
+              onClick={() => runMinimalTest()}
+              disabled={loading}
+              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50 text-sm"
+            >
+              {loading ? 'Testing...' : 'Minimal Test (Word Bank Only)'}
+            </button>
+            <button
               onClick={runBenchmark}
               disabled={loading}
-              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 text-sm"
             >
               Run Benchmark (10x)
             </button>
