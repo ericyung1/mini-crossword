@@ -260,7 +260,7 @@ export class DiagnosticGeneratorFixed {
         try {
           const candidates = this.wordBank.findWordsMatching({
             length: slot.length,
-            pattern: slot.pattern
+            pattern: slot.pattern.toLowerCase()
           });
           
           console.log(`   Raw candidates found: ${candidates.length}`);

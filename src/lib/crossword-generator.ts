@@ -226,10 +226,10 @@ export class CrosswordGenerator {
   private updateAllCandidates(grid: CrosswordGrid): void {
     for (const slot of grid.slots) {
       if (slot.pattern.indexOf('?') !== -1) { // Slot not fully filled
-        const candidates = this.wordBank.findWordsMatching({
-          length: slot.length,
-          pattern: slot.pattern
-        });
+      const candidates = this.wordBank.findWordsMatching({
+        length: slot.length,
+        pattern: slot.pattern.toLowerCase()
+      });
         
         // Filter candidates that would create valid intersections
         slot.candidates = candidates
