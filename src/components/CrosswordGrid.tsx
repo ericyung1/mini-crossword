@@ -15,6 +15,7 @@ interface CrosswordGridProps {
   autoCheck: boolean;
   revealed: boolean;
   correctAnswers?: { [key: string]: string }; // word answers by slot id
+  userGrid: string[][];
 }
 
 interface CellProps {
@@ -114,11 +115,9 @@ export default function CrosswordGrid({
   selectedDirection,
   autoCheck,
   revealed,
-  correctAnswers = {}
+  correctAnswers = {},
+  userGrid
 }: CrosswordGridProps) {
-  const [userGrid, setUserGrid] = useState<string[][]>(
-    Array(5).fill(null).map(() => Array(5).fill(''))
-  );
   
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -161,20 +160,24 @@ export default function CrosswordGrid({
     return cellIndex >= 0 ? word[cellIndex] : '';
   };
 
-  // Check if user's answer is correct
+  // Check if user's answer is correct for any word passing through this cell
   const isLetterCorrect = (row: number, col: number): boolean => {
     if (!autoCheck || revealed) return false;
     const userLetter = userGrid[row][col].toLowerCase();
-    const correctLetter = getCorrectLetter(row, col).toLowerCase();
-    return userLetter !== '' && userLetter === correctLetter;
+    if (userLetter === '') return false;
+    
+    const correctLetter = getCorrectAnswerForCell(row, col).toLowerCase();
+    return correctLetter !== '' && userLetter === correctLetter;
   };
 
-  // Check if user's answer is incorrect
+  // Check if user's answer is incorrect for any word passing through this cell
   const isLetterIncorrect = (row: number, col: number): boolean => {
     if (!autoCheck || revealed) return false;
     const userLetter = userGrid[row][col].toLowerCase();
-    const correctLetter = getCorrectLetter(row, col).toLowerCase();
-    return userLetter !== '' && correctLetter !== '' && userLetter !== correctLetter;
+    if (userLetter === '') return false;
+    
+    const correctLetter = getCorrectAnswerForCell(row, col).toLowerCase();
+    return correctLetter !== '' && userLetter !== correctLetter;
   };
 
   const handleCellClick = (row: number, col: number) => {
@@ -187,9 +190,6 @@ export default function CrosswordGrid({
     
     if (e.key === 'Backspace' || e.key === 'Delete') {
       // Clear current cell
-      const newGrid = [...userGrid];
-      newGrid[row][col] = '';
-      setUserGrid(newGrid);
       onCellChange(row, col, '');
       
       // Move to previous cell in word
@@ -208,9 +208,6 @@ export default function CrosswordGrid({
     if (e.key.match(/^[a-zA-Z]$/)) {
       // Enter letter
       const letter = e.key.toUpperCase();
-      const newGrid = [...userGrid];
-      newGrid[row][col] = letter;
-      setUserGrid(newGrid);
       onCellChange(row, col, letter);
       
       // Move to next cell in word

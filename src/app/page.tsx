@@ -16,6 +16,7 @@ interface GameState {
   isLoading: boolean;
   completedWords: Set<string>;
   userAnswers: { [key: string]: string }; // slot id -> user's word
+  userGrid: string[][]; // Track user input per cell
   timerRunning: boolean;
   timerReset: number;
 }
@@ -30,6 +31,7 @@ export default function Home() {
     isLoading: true,
     completedWords: new Set(),
     userAnswers: {},
+    userGrid: Array(5).fill(null).map(() => Array(5).fill('')),
     timerRunning: false,
     timerReset: 0
   });
@@ -44,6 +46,7 @@ export default function Home() {
       isRevealed: false,
       completedWords: new Set(),
       userAnswers: {},
+      userGrid: Array(5).fill(null).map(() => Array(5).fill('')),
       timerRunning: false,
       timerReset: prev.timerReset + 1
     }));
@@ -94,6 +97,10 @@ export default function Home() {
   const handleCellChange = (row: number, col: number, letter: string) => {
     if (!gameState.puzzle) return;
 
+    // Update the user grid
+    const newUserGrid = [...gameState.userGrid];
+    newUserGrid[row][col] = letter;
+
     // Find which slots this cell belongs to
     const affectedSlots = gameState.puzzle.slots.filter(slot =>
       slot.cells.some(cell => cell.row === row && cell.col === col)
@@ -105,14 +112,13 @@ export default function Home() {
     const newCompletedWords = new Set(gameState.completedWords);
 
     affectedSlots.forEach(slot => {
-      // Rebuild the word from current user input
+      // Rebuild the word from the updated user grid
       let userWord = '';
       slot.cells.forEach(cell => {
         if (cell.row === row && cell.col === col) {
           userWord += letter.toLowerCase();
         } else {
-          // Get existing letter from grid (this would need to be tracked)
-          userWord += '?'; // Placeholder - we'd need to track this properly
+          userWord += newUserGrid[cell.row][cell.col].toLowerCase();
         }
       });
 
@@ -121,7 +127,8 @@ export default function Home() {
       // Check if word is completed and correct
       const correctWord = correctAnswers[slot.id];
       if (correctWord && userWord.length === correctWord.length && 
-          !userWord.includes('?') && userWord === correctWord) {
+          userWord.replace(/[^a-z]/g, '').length === userWord.length && 
+          userWord === correctWord) {
         newCompletedWords.add(slot.id);
       } else {
         newCompletedWords.delete(slot.id);
@@ -130,6 +137,7 @@ export default function Home() {
 
     setGameState(prev => ({
       ...prev,
+      userGrid: newUserGrid,
       userAnswers: newUserAnswers,
       completedWords: newCompletedWords
     }));
@@ -281,6 +289,7 @@ export default function Home() {
               autoCheck={gameState.autoCheck}
               revealed={gameState.isRevealed}
               correctAnswers={getCorrectAnswers()}
+              userGrid={gameState.userGrid}
             />
           </div>
 
