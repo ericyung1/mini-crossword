@@ -48,40 +48,40 @@ export const CROSSWORD_TEMPLATES: CrosswordMask[] = [
   
   {
     id: 't4',
-    name: 'Plus Pattern',
-    description: 'Cross-shaped black squares',
+    name: 'Simple Center',
+    description: 'Single black square in center - simple and connected',
     grid: [
       ['.', '.', '.', '.', '.'],
+      ['.', '.', '.', '.', '.'],
       ['.', '.', '#', '.', '.'],
-      ['.', '#', '.', '#', '.'],
-      ['.', '.', '#', '.', '.'],
+      ['.', '.', '.', '.', '.'],
       ['.', '.', '.', '.', '.']
     ]
   },
   
   {
     id: 't5',
-    name: 'Diamond Pattern',
-    description: 'Diamond-shaped black squares',
+    name: 'Minimal Blocks',
+    description: 'Two black squares - guaranteed connected',
     grid: [
-      ['.', '.', '#', '.', '.'],
+      ['.', '.', '.', '.', '.'],
       ['.', '#', '.', '#', '.'],
-      ['#', '.', '.', '.', '#'],
+      ['.', '.', '.', '.', '.'],
       ['.', '#', '.', '#', '.'],
-      ['.', '.', '#', '.', '.']
+      ['.', '.', '.', '.', '.']
     ]
   },
   
   {
     id: 't6',
-    name: 'Side Blocks',
-    description: 'Black squares on left and right edges',
+    name: 'Edge Centers',
+    description: 'Black squares at edge centers - connected',
     grid: [
-      ['.', '#', '.', '#', '.'],
-      ['#', '.', '.', '.', '#'],
+      ['.', '.', '#', '.', '.'],
       ['.', '.', '.', '.', '.'],
       ['#', '.', '.', '.', '#'],
-      ['.', '#', '.', '#', '.']
+      ['.', '.', '.', '.', '.'],
+      ['.', '.', '#', '.', '.']
     ]
   },
   

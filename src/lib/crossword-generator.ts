@@ -26,7 +26,7 @@ export class CrosswordGenerator {
    */
   async generate(options: GenerationOptions = {}): Promise<GenerationResult> {
     const startTime = performance.now();
-    const { seed, templateId, maxAttempts = 1000, timeoutMs = 5000 } = options;
+    const { seed, templateId, maxAttempts = 50, timeoutMs = 10000 } = options;
     
     this.maxAttempts = maxAttempts;
     this.timeoutMs = timeoutMs;
@@ -95,9 +95,14 @@ export class CrosswordGenerator {
   }
   
   /**
-   * Fill the grid using MRV heuristic with forward checking
+   * Fill the grid using MRV heuristic with forward checking - OPTIMIZED
    */
   private async fillGrid(grid: CrosswordGrid, startTime: number): Promise<boolean> {
+    // Check timeout early
+    if (performance.now() - startTime > 1000) { // 1s per attempt (increased)
+      return false;
+    }
+
     // Update all slot patterns and candidates
     this.updateAllCandidates(grid);
     
@@ -118,8 +123,11 @@ export class CrosswordGenerator {
     // Try each candidate word for the selected slot
     const candidates = [...(targetSlot.candidates || [])];
     
-    // Sort candidates by frequency (higher frequency first) for better solutions
-    candidates.sort((a, b) => {
+    // Limit candidates to top 20 for performance (instead of sorting all)
+    const limitedCandidates = candidates.slice(0, 20);
+    
+    // Sort limited candidates by frequency (higher frequency first)
+    limitedCandidates.sort((a, b) => {
       const aEntry = this.wordBank.getWordsByLength(targetSlot.length as 3|4|5)
         .find(entry => entry.word === a);
       const bEntry = this.wordBank.getWordsByLength(targetSlot.length as 3|4|5)
@@ -127,21 +135,16 @@ export class CrosswordGenerator {
       return (bEntry?.frequency || 0) - (aEntry?.frequency || 0);
     });
     
-    for (const word of candidates) {
-      // Check timeout
-      if (performance.now() - startTime > 250) { // 250ms per attempt
-        return false;
-      }
-      
+    for (const word of limitedCandidates) {
       // Skip if word already used (soft constraint)
       if (this.usedWords.has(word)) continue;
       
-      // Validate placement
+      // Validate placement (this is fast)
       if (!GridAnalyzer.isValidPlacement(word, targetSlot, grid)) {
         continue;
       }
       
-      // Save current state for backtracking
+      // Save current state for backtracking (lightweight)
       const savedPatterns = this.saveSlotPatterns(grid);
       
       // Place the word

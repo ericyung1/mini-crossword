@@ -18,8 +18,8 @@ export async function POST(request: NextRequest) {
     const result = await generator.generate({
       seed: typeof seed === 'number' ? seed : undefined,
       templateId: typeof templateId === 'string' ? templateId : undefined,
-      maxAttempts: typeof maxAttempts === 'number' ? maxAttempts : 1000,
-      timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : 5000
+      maxAttempts: typeof maxAttempts === 'number' ? maxAttempts : 50,
+      timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : 10000
     });
     
     const duration = performance.now() - startTime;
