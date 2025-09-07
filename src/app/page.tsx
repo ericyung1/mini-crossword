@@ -9,10 +9,18 @@ export default function Home() {
           NYT-style 5×5 crossword puzzle generator
         </p>
         <div className="mt-8 text-center">
-          <p className="text-lg">🧩 Phase 0 Complete!</p>
+          <p className="text-lg">🧩 Phase 1 Complete!</p>
           <p className="text-sm mt-2 text-gray-500">
-            Ready for puzzle generation and clue creation
+            Word bank parsing and indexing system ready
           </p>
+          <div className="mt-6">
+            <a 
+              href="/diagnostics" 
+              className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              🔍 Test Word Bank Diagnostics
+            </a>
+          </div>
         </div>
       </div>
     </main>
