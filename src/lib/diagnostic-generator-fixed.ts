@@ -48,12 +48,27 @@ export class DiagnosticGeneratorFixed {
       console.log(`   - 1 intersection: at (0,0)`);
       
       // Build grid structure
-      const grid = GridAnalyzer.buildGrid(simpleTemplate);
-      console.log(`🏗️ Fixed diagnostic grid built with ${grid.slots.length} slots`);
+      console.log(`🏗️ Building grid from template:`, simpleTemplate.grid);
+      let grid;
+      try {
+        grid = GridAnalyzer.buildGrid(simpleTemplate);
+        console.log(`🏗️ Fixed diagnostic grid built with ${grid.slots.length} slots`);
+      } catch (error) {
+        console.error(`💥 Error building grid:`, error);
+        throw error;
+      }
       
       // Log slot details
       for (const slot of grid.slots) {
         console.log(`   Slot ${slot.id}: ${slot.direction} ${slot.length} letters at (${slot.startRow},${slot.startCol})`);
+        console.log(`   Slot ${slot.id} cells:`, slot.cells);
+      }
+      
+      // Log grid cells
+      console.log(`🔍 Grid cells state:`);
+      for (let row = 0; row < 5; row++) {
+        const rowStr = grid.cells[row].map(cell => cell.type).join(' ');
+        console.log(`   Row ${row}: ${rowStr}`);
       }
       
       // Verify we have exactly 2 slots
@@ -65,7 +80,20 @@ export class DiagnosticGeneratorFixed {
       this.logCount = 0;
       
       // Attempt to fill the grid
-      const success = await this.fillGridDiagnostic(grid);
+      console.log(`🚀 Starting fillGridDiagnostic...`);
+      let success;
+      try {
+        success = await this.fillGridDiagnostic(grid);
+        console.log(`🏁 fillGridDiagnostic completed, success: ${success}`);
+      } catch (error) {
+        console.error(`💥 Error in fillGridDiagnostic:`, error);
+        return {
+          success: false,
+          error: `fillGridDiagnostic error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          attempts: 1,
+          duration: performance.now() - startTime
+        };
+      }
       
       if (success) {
         console.log(`✅ FIXED DIAGNOSTIC Generation successful!`);
@@ -77,10 +105,10 @@ export class DiagnosticGeneratorFixed {
           duration: performance.now() - startTime
         };
       } else {
-        console.log(`❌ FIXED DIAGNOSTIC Generation failed`);
+        console.log(`❌ FIXED DIAGNOSTIC Generation failed - no valid solution found`);
         return {
           success: false,
-          error: 'Fixed diagnostic generation failed',
+          error: 'Fixed diagnostic generation failed - no valid solution found',
           attempts: 1,
           duration: performance.now() - startTime
         };
@@ -224,19 +252,45 @@ export class DiagnosticGeneratorFixed {
    * Update candidates for all unfilled slots
    */
   private updateAllCandidates(grid: CrosswordGrid): void {
+    console.log(`🔄 updateAllCandidates called`);
     for (const slot of grid.slots) {
       if (slot.pattern.indexOf('?') !== -1) { // Slot not fully filled
-        const candidates = this.wordBank.findWordsMatching({
-          length: slot.length,
-          pattern: slot.pattern
-        });
+        console.log(`   Finding candidates for slot ${slot.id} (length=${slot.length}, pattern="${slot.pattern}")`);
         
-        // Filter candidates that would create valid intersections
-        slot.candidates = candidates
-          .map(entry => entry.word)
-          .filter(word => GridAnalyzer.isValidPlacement(word, slot, grid));
+        try {
+          const candidates = this.wordBank.findWordsMatching({
+            length: slot.length,
+            pattern: slot.pattern
+          });
+          
+          console.log(`   Raw candidates found: ${candidates.length}`);
+          if (candidates.length > 0) {
+            console.log(`   First 5 raw candidates: ${candidates.slice(0, 5).map(e => e.word).join(', ')}`);
+          }
+          
+          // Filter candidates that would create valid intersections
+          const validCandidates = candidates
+            .map(entry => entry.word)
+            .filter(word => {
+              const isValid = GridAnalyzer.isValidPlacement(word, slot, grid);
+              if (!isValid && candidates.length <= 10) { // Only log for small candidate sets
+                console.log(`     Rejected ${word} - invalid placement`);
+              }
+              return isValid;
+            });
+          
+          slot.candidates = validCandidates;
+          console.log(`   Valid candidates after filtering: ${validCandidates.length}`);
+          if (validCandidates.length > 0) {
+            console.log(`   First 5 valid candidates: ${validCandidates.slice(0, 5).join(', ')}`);
+          }
+        } catch (error) {
+          console.error(`   Error finding candidates for slot ${slot.id}:`, error);
+          slot.candidates = [];
+        }
       } else {
         slot.candidates = []; // Slot already filled
+        console.log(`   Slot ${slot.id} already filled (pattern="${slot.pattern}")`);
       }
     }
   }
