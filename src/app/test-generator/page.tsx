@@ -213,6 +213,45 @@ export default function TestGeneratorPage() {
     }
   };
 
+  const generateFixedDiagnosticPuzzle = async () => {
+    setLoading(true);
+    setError(null);
+    
+    console.log('🔬 Starting FIXED diagnostic test with 2 slots only - check browser console!');
+    
+    try {
+      const response = await fetch('/api/generate-diagnostic-fixed');
+      const data = await response.json();
+      
+      if (response.ok) {
+        setPuzzle(data);
+        setStats(prev => ({
+          successes: prev.successes + 1,
+          failures: prev.failures,
+          averageTime: (prev.averageTime * prev.successes + (data.meta.duration || 0)) / (prev.successes + 1),
+          averageAttempts: (prev.averageAttempts * prev.successes + (data.meta.attempts || 1)) / (prev.successes + 1)
+        }));
+        console.log('✅ Fixed diagnostic test succeeded!');
+      } else {
+        setError(data.error || 'Fixed diagnostic generation failed');
+        setStats(prev => ({
+          ...prev,
+          failures: prev.failures + 1
+        }));
+        console.log('❌ Fixed diagnostic test failed:', data.error);
+      }
+    } catch (err) {
+      setError('Network error');
+      setStats(prev => ({
+        ...prev,
+        failures: prev.failures + 1
+      }));
+      console.log('💥 Fixed diagnostic test network error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const runBenchmark = async () => {
     setLoading(true);
     setError(null);
@@ -326,6 +365,13 @@ export default function TestGeneratorPage() {
               className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50 text-sm"
             >
               {loading ? 'Testing...' : 'Minimal Test (Word Bank Only)'}
+            </button>
+            <button
+              onClick={() => generateFixedDiagnosticPuzzle()}
+              disabled={loading}
+              className="px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 disabled:opacity-50 text-sm"
+            >
+              {loading ? 'Testing...' : 'Fixed Diagnostic (2 Slots Only)'}
             </button>
             <button
               onClick={runBenchmark}
