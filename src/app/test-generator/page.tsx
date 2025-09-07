@@ -55,10 +55,44 @@ export default function TestGeneratorPage() {
           successes: prev.successes + 1,
           failures: prev.failures,
           averageTime: (prev.averageTime * prev.successes + data.meta.generationTime) / (prev.successes + 1),
-          averageAttempts: (prev.averageAttempts * prev.successes + data.meta.attempts) / (prev.successes + 1)
+          averageAttempts: (prev.averageAttempts * prev.successes + (data.meta.attempts || 1)) / (prev.successes + 1)
         }));
       } else {
         setError(data.error || 'Generation failed');
+        setStats(prev => ({
+          ...prev,
+          failures: prev.failures + 1
+        }));
+      }
+    } catch (err) {
+      setError('Network error');
+      setStats(prev => ({
+        ...prev,
+        failures: prev.failures + 1
+      }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateSimplePuzzle = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/generate-simple');
+      const data = await response.json();
+      
+      if (response.ok) {
+        setPuzzle(data);
+        setStats(prev => ({
+          successes: prev.successes + 1,
+          failures: prev.failures,
+          averageTime: (prev.averageTime * prev.successes + data.meta.generationTime) / (prev.successes + 1),
+          averageAttempts: (prev.averageAttempts * prev.successes + 1) / (prev.successes + 1)
+        }));
+      } else {
+        setError(data.error || 'Simple generation failed');
         setStats(prev => ({
           ...prev,
           failures: prev.failures + 1
@@ -159,7 +193,14 @@ export default function TestGeneratorPage() {
               disabled={loading}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
-              {loading ? 'Generating...' : 'Generate Puzzle'}
+              {loading ? 'Generating...' : 'Generate Puzzle (Complex)'}
+            </button>
+            <button
+              onClick={() => generateSimplePuzzle()}
+              disabled={loading}
+              className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+            >
+              {loading ? 'Generating...' : 'Generate Simple'}
             </button>
             <button
               onClick={runBenchmark}

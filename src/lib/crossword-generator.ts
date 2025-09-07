@@ -26,10 +26,12 @@ export class CrosswordGenerator {
    */
   async generate(options: GenerationOptions = {}): Promise<GenerationResult> {
     const startTime = performance.now();
-    const { seed, templateId, maxAttempts = 50, timeoutMs = 10000 } = options;
+    const { seed, templateId, maxAttempts = 10, timeoutMs = 5000 } = options; // Reduced for debugging
     
     this.maxAttempts = maxAttempts;
     this.timeoutMs = timeoutMs;
+    
+    console.log(`🎯 Starting generation with ${maxAttempts} max attempts, ${timeoutMs}ms timeout`);
     
     // Ensure word bank is initialized
     await this.wordBank.initialize();
@@ -42,6 +44,7 @@ export class CrosswordGenerator {
       
       // Check timeout
       if (performance.now() - startTime > this.timeoutMs) {
+        console.log(`⏰ Generation timeout after ${attempts} attempts`);
         return {
           success: false,
           error: 'Generation timeout exceeded',
@@ -53,24 +56,29 @@ export class CrosswordGenerator {
       attempts++;
       this.usedWords.clear();
       
+      console.log(`🔄 Attempt ${attempts}/${maxAttempts}`);
+      
       try {
-        // Select template
-        const template = templateId ? 
-          getTemplateById(templateId) : 
-          getRandomTemplate(seed ? seed + attempts : undefined);
+        // Select template - use only t1 (open grid) for now
+        const template = getTemplateById('t1');
           
         if (!template) {
-          lastError = `Template ${templateId} not found`;
+          lastError = `Template t1 not found`;
+          console.error(lastError);
           continue;
         }
         
+        console.log(`📋 Using template: ${template.name}`);
+        
         // Build grid structure
         const grid = GridAnalyzer.buildGrid(template);
+        console.log(`🏗️ Grid built with ${grid.slots.length} slots`);
         
         // Attempt to fill the grid
         const success = await this.fillGrid(grid, attemptStart);
         
         if (success) {
+          console.log(`✅ Generation successful in ${performance.now() - startTime}ms`);
           const puzzle = this.buildPuzzleResult(grid, template.id, seed);
           return {
             success: true,
@@ -78,14 +86,17 @@ export class CrosswordGenerator {
             attempts,
             duration: performance.now() - startTime
           };
+        } else {
+          console.log(`❌ Attempt ${attempts} failed after ${performance.now() - attemptStart}ms`);
         }
         
       } catch (error) {
         lastError = error instanceof Error ? error.message : 'Unknown error';
-        console.warn(`Generation attempt ${attempts} failed:`, lastError);
+        console.error(`💥 Generation attempt ${attempts} failed:`, lastError);
       }
     }
     
+    console.log(`🚫 All ${attempts} attempts failed`);
     return {
       success: false,
       error: lastError || 'Max attempts exceeded',
@@ -99,7 +110,8 @@ export class CrosswordGenerator {
    */
   private async fillGrid(grid: CrosswordGrid, startTime: number): Promise<boolean> {
     // Check timeout early
-    if (performance.now() - startTime > 1000) { // 1s per attempt (increased)
+    if (performance.now() - startTime > 800) { // 800ms per attempt
+      console.log(`⏰ fillGrid timeout after ${performance.now() - startTime}ms`);
       return false;
     }
 
@@ -109,6 +121,7 @@ export class CrosswordGenerator {
     // Check if any slot has zero candidates (early failure)
     for (const slot of grid.slots) {
       if (!slot.candidates || slot.candidates.length === 0) {
+        console.log(`❌ Slot ${slot.id} has no candidates (pattern: ${slot.pattern})`);
         return false; // Forward checking failure
       }
     }
@@ -117,32 +130,34 @@ export class CrosswordGenerator {
     const targetSlot = this.selectSlotMRV(grid);
     
     if (!targetSlot) {
+      console.log(`✅ All slots filled successfully`);
       return true; // All slots filled successfully
     }
+    
+    console.log(`🎯 Filling slot ${targetSlot.id} (${targetSlot.pattern}) with ${targetSlot.candidates?.length || 0} candidates`);
     
     // Try each candidate word for the selected slot
     const candidates = [...(targetSlot.candidates || [])];
     
-    // Limit candidates to top 20 for performance (instead of sorting all)
-    const limitedCandidates = candidates.slice(0, 20);
+    // Limit candidates to top 5 for performance (reduced from 20)
+    const limitedCandidates = candidates.slice(0, 5);
     
-    // Sort limited candidates by frequency (higher frequency first)
-    limitedCandidates.sort((a, b) => {
-      const aEntry = this.wordBank.getWordsByLength(targetSlot.length as 3|4|5)
-        .find(entry => entry.word === a);
-      const bEntry = this.wordBank.getWordsByLength(targetSlot.length as 3|4|5)
-        .find(entry => entry.word === b);
-      return (bEntry?.frequency || 0) - (aEntry?.frequency || 0);
-    });
+    console.log(`🔍 Trying top ${limitedCandidates.length} candidates: ${limitedCandidates.join(', ')}`);
     
     for (const word of limitedCandidates) {
       // Skip if word already used (soft constraint)
-      if (this.usedWords.has(word)) continue;
+      if (this.usedWords.has(word)) {
+        console.log(`⏭️ Skipping already used word: ${word}`);
+        continue;
+      }
       
       // Validate placement (this is fast)
       if (!GridAnalyzer.isValidPlacement(word, targetSlot, grid)) {
+        console.log(`❌ Invalid placement for word: ${word}`);
         continue;
       }
+      
+      console.log(`✅ Trying word: ${word}`);
       
       // Save current state for backtracking (lightweight)
       const savedPatterns = this.saveSlotPatterns(grid);
@@ -158,12 +173,15 @@ export class CrosswordGenerator {
         return true;
       }
       
+      console.log(`🔙 Backtracking from word: ${word}`);
+      
       // Backtrack: restore state
       this.restoreSlotPatterns(grid, savedPatterns);
       GridAnalyzer.removeWord(targetSlot, grid);
       this.usedWords.delete(word);
     }
     
+    console.log(`❌ No valid word found for slot ${targetSlot.id}`);
     return false; // No valid word found for this slot
   }
   
