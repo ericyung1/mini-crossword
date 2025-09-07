@@ -109,6 +109,45 @@ export default function TestGeneratorPage() {
     }
   };
 
+  const generateUnlimitedPuzzle = async () => {
+    setLoading(true);
+    setError(null);
+    
+    console.log('🚀 Starting unlimited test - check browser console for detailed logs!');
+    
+    try {
+      const response = await fetch('/api/generate-unlimited');
+      const data = await response.json();
+      
+      if (response.ok) {
+        setPuzzle(data);
+        setStats(prev => ({
+          successes: prev.successes + 1,
+          failures: prev.failures,
+          averageTime: (prev.averageTime * prev.successes + (data.meta.duration || 0)) / (prev.successes + 1),
+          averageAttempts: (prev.averageAttempts * prev.successes + (data.meta.attempts || 1)) / (prev.successes + 1)
+        }));
+        console.log('✅ Unlimited test succeeded!');
+      } else {
+        setError(data.error || 'Unlimited generation failed');
+        setStats(prev => ({
+          ...prev,
+          failures: prev.failures + 1
+        }));
+        console.log('❌ Unlimited test failed:', data.error);
+      }
+    } catch (err) {
+      setError('Network error');
+      setStats(prev => ({
+        ...prev,
+        failures: prev.failures + 1
+      }));
+      console.log('💥 Unlimited test network error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const runBenchmark = async () => {
     setLoading(true);
     setError(null);
@@ -201,6 +240,13 @@ export default function TestGeneratorPage() {
               className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
             >
               {loading ? 'Generating...' : 'Generate Simple'}
+            </button>
+            <button
+              onClick={() => generateUnlimitedPuzzle()}
+              disabled={loading}
+              className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+            >
+              {loading ? 'Testing...' : 'Test Unlimited (No Timeout)'}
             </button>
             <button
               onClick={runBenchmark}
