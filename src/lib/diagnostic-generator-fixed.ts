@@ -127,97 +127,74 @@ export class DiagnosticGeneratorFixed {
   }
   
   /**
-   * Fill grid with extensive logging for diagnosis
+   * Fill grid with simple brute force approach (like the working simple-two-slot)
    */
   private async fillGridDiagnostic(grid: CrosswordGrid): Promise<boolean> {
-    this.logCount++;
+    console.log(`🔍 SIMPLIFIED: Using brute force approach like simple-two-slot`);
     
-    console.log(`🔍 [${this.logCount}] fillGridDiagnostic called`);
-
-    // Update all slot patterns and candidates
-    console.log(`🔄 [${this.logCount}] Updating candidates...`);
-    this.updateAllCandidates(grid);
+    // For 2-slot puzzle, just try first valid combination
+    const acrossSlot = grid.slots.find(s => s.direction === 'across');
+    const downSlot = grid.slots.find(s => s.direction === 'down');
     
-    // Log current state
-    for (const slot of grid.slots) {
-      console.log(`   Slot ${slot.id}: pattern="${slot.pattern}" candidates=${slot.candidates?.length || 0}`);
-      if (slot.candidates && slot.candidates.length > 0) {
-        console.log(`      First 5: ${slot.candidates.slice(0, 5).join(', ')}`);
-      }
+    if (!acrossSlot || !downSlot) {
+      console.log(`❌ Missing slots: across=${!!acrossSlot}, down=${!!downSlot}`);
+      return false;
     }
     
-    // Check if any slot has zero candidates (early failure)
-    for (const slot of grid.slots) {
-      if (!slot.candidates || slot.candidates.length === 0) {
-        console.log(`❌ [${this.logCount}] Slot ${slot.id} has no candidates (pattern: ${slot.pattern})`);
-        return false;
+    console.log(`📐 Filling across slot ${acrossSlot.id} first...`);
+    
+    // Get candidates for across slot
+    const acrossCandidates = this.wordBank.findWordsMatching({
+      length: acrossSlot.length,
+      pattern: acrossSlot.pattern.toLowerCase()
+    });
+    
+    console.log(`🔍 Across candidates: ${acrossCandidates.length}`);
+    
+    // Try first 10 across candidates
+    for (let i = 0; i < Math.min(10, acrossCandidates.length); i++) {
+      const acrossWord = acrossCandidates[i].word;
+      console.log(`\n🧪 [${i+1}] Trying across word: "${acrossWord}"`);
+      
+      // Place across word
+      GridAnalyzer.placeWord(acrossWord, acrossSlot, grid);
+      console.log(`   After placing "${acrossWord}": down pattern = "${downSlot.pattern}"`);
+      
+      // Get candidates for down slot
+      const downCandidates = this.wordBank.findWordsMatching({
+        length: downSlot.length,
+        pattern: downSlot.pattern.toLowerCase()
+      });
+      
+      console.log(`   Down candidates: ${downCandidates.length}`);
+      
+      if (downCandidates.length > 0) {
+        // Try first down candidate
+        const downWord = downCandidates[0].word;
+        console.log(`   Trying down word: "${downWord}"`);
+        
+        // Check if valid
+        const isValid = GridAnalyzer.isValidPlacement(downWord, downSlot, grid);
+        console.log(`   "${downWord}" valid: ${isValid}`);
+        
+        if (isValid) {
+          // Place it
+          GridAnalyzer.placeWord(downWord, downSlot, grid);
+          
+          console.log(`✅ SOLUTION FOUND!`);
+          console.log(`   Across: "${acrossWord}" at (${acrossSlot.startRow},${acrossSlot.startCol})`);
+          console.log(`   Down: "${downWord}" at (${downSlot.startRow},${downSlot.startCol})`);
+          
+          return true;
+        }
       }
+      
+      // Backtrack: remove across word
+      console.log(`   Backtracking from "${acrossWord}"`);
+      GridAnalyzer.removeWord(acrossSlot, grid);
     }
     
-    // Find slot with minimum remaining values (MRV heuristic)
-    const targetSlot = this.selectSlotMRV(grid);
-    
-    if (!targetSlot) {
-      console.log(`✅ [${this.logCount}] All slots filled successfully`);
-      return true;
-    }
-    
-    console.log(`🎯 [${this.logCount}] Selected slot ${targetSlot.id} (${targetSlot.candidates?.length || 0} candidates)`);
-    
-    // Try candidates (limit to 5 for debugging)
-    const candidates = [...(targetSlot.candidates || [])].slice(0, 5);
-    
-    console.log(`🔍 [${this.logCount}] Trying candidates: ${candidates.join(', ')}`);
-    
-    for (const word of candidates) {
-      // Skip if word already used
-      if (this.usedWords.has(word)) {
-        console.log(`⏭️ [${this.logCount}] Skipping already used word: ${word}`);
-        continue;
-      }
-      
-      // Validate placement
-      if (!GridAnalyzer.isValidPlacement(word, targetSlot, grid)) {
-        console.log(`❌ [${this.logCount}] Invalid placement for word: ${word}`);
-        continue;
-      }
-      
-      console.log(`✅ [${this.logCount}] Trying word: ${word}`);
-      
-      // Save current state for backtracking
-      const savedPatterns = this.saveSlotPatterns(grid);
-      
-      // Place the word
-      GridAnalyzer.placeWord(word, targetSlot, grid);
-      this.usedWords.add(word);
-      
-      console.log(`📝 [${this.logCount}] Placed word: ${word}`);
-      
-      // Prevent infinite recursion by limiting depth
-      if (this.logCount > 10) {
-        console.log(`⚠️ [${this.logCount}] Stopping at depth 10 to prevent infinite recursion`);
-        this.restoreSlotPatterns(grid, savedPatterns);
-        GridAnalyzer.removeWord(targetSlot, grid);
-        this.usedWords.delete(word);
-        return false;
-      }
-      
-      // Recursively fill remaining slots
-      const success = await this.fillGridDiagnostic(grid);
-      
-      if (success) {
-        return true;
-      }
-      
-      console.log(`🔙 [${this.logCount}] Backtracking from word: ${word}`);
-      
-      // Backtrack: restore state
-      this.restoreSlotPatterns(grid, savedPatterns);
-      GridAnalyzer.removeWord(targetSlot, grid);
-      this.usedWords.delete(word);
-    }
-    
-    console.log(`❌ [${this.logCount}] No valid word found for slot ${targetSlot.id}`);
+    console.log(`❌ No solution found in first 10 attempts`);
     return false;
   }
   

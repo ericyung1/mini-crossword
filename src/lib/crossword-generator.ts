@@ -59,11 +59,11 @@ export class CrosswordGenerator {
       console.log(`🔄 Attempt ${attempts}/${maxAttempts}`);
       
       try {
-        // Select template - use only t1 (open grid) for now
-        const template = getTemplateById('t1');
+        // Select template - use t2 (classic mini) for better success rate
+        const template = getTemplateById('t2');
           
         if (!template) {
-          lastError = `Template t1 not found`;
+          lastError = `Template t2 not found`;
           console.error(lastError);
           continue;
         }
