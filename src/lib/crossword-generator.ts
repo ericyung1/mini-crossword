@@ -1,331 +1,470 @@
-import { 
-  CrosswordGrid, 
-  CrosswordSlot, 
-  CrosswordPuzzle, 
-  GenerationOptions, 
-  GenerationResult 
-} from '@/types/crossword';
-import { getWordBank } from '@/lib/wordbank';
-import { GridAnalyzer } from '@/lib/grid-analyzer';
-import { getRandomTemplate, getTemplateById } from '@/lib/templates';
+import { CrosswordMask, CrosswordSlot, CrosswordGrid, GridCell } from '@/types/crossword';
+import { WordEntry } from '@/types/wordbank';
+import { getWordBank } from './wordbank';
+import { generateCluesForPuzzle } from './openai-clues';
+import { getWordHistory } from './word-history';
 
 /**
- * Advanced crossword generator using MRV heuristic and forward checking
- * Implements constraint satisfaction with backtracking
+ * Advanced Crossword Generator using Backtracking with Constraint Satisfaction
+ * 
+ * Algorithm Overview:
+ * 1. Slot Detection: Extract all word slots from template
+ * 2. Constraint Ordering: Sort slots by difficulty (most constrained first)
+ * 3. Backtracking Search: Place words while maintaining consistency
+ * 4. Intersection Validation: Ensure crossing words share correct letters
+ * 5. Frequency Optimization: Prefer higher frequency words for better puzzles
+ * 6. Word History: Prevent repetition across recent puzzles
+ * 7. Alphabet Randomization: Ensure diverse starting letters
  */
+
+export interface GeneratedCrossword {
+  grid: GridCell[][];
+  slots: CrosswordSlot[];
+  acrossSlots: CrosswordSlot[];
+  downSlots: CrosswordSlot[];
+  words: Array<{
+    slot: CrosswordSlot;
+    word: string;
+    clue?: string;
+  }>;
+  templateId: string;
+  generationTime: number;
+}
+
 export class CrosswordGenerator {
   private wordBank = getWordBank();
-  private usedWords = new Set<string>();
   private maxAttempts = 1000;
-  private timeoutMs = 5000;
-  
-  constructor() {}
-  
+  private maxBacktracks = 50;
+
   /**
-   * Generate a complete crossword puzzle
+   * Generate a complete crossword puzzle from a template
    */
-  async generate(options: GenerationOptions = {}): Promise<GenerationResult> {
+  async generateCrossword(template: CrosswordMask, generateClues = true): Promise<GeneratedCrossword> {
     const startTime = performance.now();
-    const { seed, templateId, maxAttempts = 10, timeoutMs = 5000 } = options; // Reduced for debugging
-    
-    this.maxAttempts = maxAttempts;
-    this.timeoutMs = timeoutMs;
-    
-    console.log(`🎯 Starting generation with ${maxAttempts} max attempts, ${timeoutMs}ms timeout`);
     
     // Ensure word bank is initialized
     await this.wordBank.initialize();
     
-    let attempts = 0;
-    let lastError = '';
+    // Step 1: Extract all word slots from template
+    const slots = this.extractSlots(template);
     
-    while (attempts < this.maxAttempts) {
-      const attemptStart = performance.now();
-      
-      // Check timeout
-      if (performance.now() - startTime > this.timeoutMs) {
-        console.log(`⏰ Generation timeout after ${attempts} attempts`);
-        return {
-          success: false,
-          error: 'Generation timeout exceeded',
-          attempts,
-          duration: performance.now() - startTime
-        };
-      }
-      
-      attempts++;
-      this.usedWords.clear();
-      
-      console.log(`🔄 Attempt ${attempts}/${maxAttempts}`);
-      
-      try {
-        // Select template - use t2 (classic mini) for better success rate
-        const template = getTemplateById('t2');
-          
-        if (!template) {
-          lastError = `Template t2 not found`;
-          console.error(lastError);
-          continue;
-        }
-        
-        console.log(`📋 Using template: ${template.name}`);
-        
-        // Build grid structure
-        const grid = GridAnalyzer.buildGrid(template);
-        console.log(`🏗️ Grid built with ${grid.slots.length} slots`);
-        
-        // Attempt to fill the grid
-        const success = await this.fillGrid(grid, attemptStart);
-        
-        if (success) {
-          console.log(`✅ Generation successful in ${performance.now() - startTime}ms`);
-          const puzzle = this.buildPuzzleResult(grid, template.id, seed);
-          return {
-            success: true,
-            puzzle,
-            attempts,
-            duration: performance.now() - startTime
-          };
-        } else {
-          console.log(`❌ Attempt ${attempts} failed after ${performance.now() - attemptStart}ms`);
-        }
-        
-      } catch (error) {
-        lastError = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`💥 Generation attempt ${attempts} failed:`, lastError);
-      }
+    // Step 2: Initialize grid
+    const grid = this.initializeGrid(template);
+    
+    // Step 3: Sort slots by constraint level (Most Constrained Variable heuristic)
+    const sortedSlots = this.sortSlotsByConstraints(slots);
+    
+    // Step 4: Attempt to fill grid using backtracking
+    const solution = await this.backtrackFill(grid, sortedSlots, new Map());
+    
+    if (!solution) {
+      throw new Error(`Failed to generate crossword for template ${template.id} after ${this.maxAttempts} attempts`);
     }
     
-    console.log(`🚫 All ${attempts} attempts failed`);
+    const { filledGrid, wordPlacements } = solution;
+    
+    // Step 5: Generate clues if requested
+    let clueMap = new Map<string, string>();
+    if (generateClues) {
+      const wordsForClues = Array.from(wordPlacements.entries()).map(([slotId, word]) => {
+        const slot = slots.find(s => s.id === slotId)!;
+        return { word, direction: slot.direction };
+      });
+      clueMap = await generateCluesForPuzzle(wordsForClues);
+    }
+    
+    const words = Array.from(wordPlacements.entries()).map(([slotId, word]) => {
+      const slot = slots.find(s => s.id === slotId)!;
+      return {
+        slot,
+        word,
+        clue: generateClues ? clueMap.get(word) : undefined
+      };
+    });
+    
+    const generationTime = performance.now() - startTime;
+
+    // Step 6: Track words in history to prevent repetition
+    const wordHistory = getWordHistory();
+    const puzzleId = `${template.id}-${Date.now()}`;
+    const usedWords = Array.from(wordPlacements.values());
+    wordHistory.addPuzzleWords(usedWords, puzzleId);
+    
     return {
-      success: false,
-      error: lastError || 'Max attempts exceeded',
-      attempts,
-      duration: performance.now() - startTime
+      grid: filledGrid,
+      slots,
+      acrossSlots: slots.filter(s => s.direction === 'across'),
+      downSlots: slots.filter(s => s.direction === 'down'),
+      words,
+      templateId: template.id,
+      generationTime: Math.round(generationTime * 100) / 100
     };
   }
-  
-  /**
-   * Fill the grid using MRV heuristic with forward checking - OPTIMIZED
-   */
-  private async fillGrid(grid: CrosswordGrid, startTime: number): Promise<boolean> {
-    // Check timeout early
-    if (performance.now() - startTime > 800) { // 800ms per attempt
-      console.log(`⏰ fillGrid timeout after ${performance.now() - startTime}ms`);
-      return false;
-    }
 
-    // Update all slot patterns and candidates
-    this.updateAllCandidates(grid);
-    
-    // Check if any slot has zero candidates (early failure)
-    for (const slot of grid.slots) {
-      if (!slot.candidates || slot.candidates.length === 0) {
-        console.log(`❌ Slot ${slot.id} has no candidates (pattern: ${slot.pattern})`);
-        return false; // Forward checking failure
-      }
-    }
-    
-    // Find slot with minimum remaining values (MRV heuristic)
-    const targetSlot = this.selectSlotMRV(grid);
-    
-    if (!targetSlot) {
-      console.log(`✅ All slots filled successfully`);
-      return true; // All slots filled successfully
-    }
-    
-    console.log(`🎯 Filling slot ${targetSlot.id} (${targetSlot.pattern}) with ${targetSlot.candidates?.length || 0} candidates`);
-    
-    // Try each candidate word for the selected slot
-    const candidates = [...(targetSlot.candidates || [])];
-    
-    // Limit candidates to top 5 for performance (reduced from 20)
-    const limitedCandidates = candidates.slice(0, 5);
-    
-    console.log(`🔍 Trying top ${limitedCandidates.length} candidates: ${limitedCandidates.join(', ')}`);
-    
-    for (const word of limitedCandidates) {
-      // Skip if word already used (soft constraint)
-      if (this.usedWords.has(word)) {
-        console.log(`⏭️ Skipping already used word: ${word}`);
-        continue;
-      }
-      
-      // Validate placement (this is fast)
-      if (!GridAnalyzer.isValidPlacement(word, targetSlot, grid)) {
-        console.log(`❌ Invalid placement for word: ${word}`);
-        continue;
-      }
-      
-      console.log(`✅ Trying word: ${word}`);
-      
-      // Save current state for backtracking (lightweight)
-      const savedPatterns = this.saveSlotPatterns(grid);
-      
-      // Place the word
-      GridAnalyzer.placeWord(word, targetSlot, grid);
-      this.usedWords.add(word);
-      
-      // Recursively fill remaining slots
-      const success = await this.fillGrid(grid, startTime);
-      
-      if (success) {
-        return true;
-      }
-      
-      console.log(`🔙 Backtracking from word: ${word}`);
-      
-      // Backtrack: restore state
-      this.restoreSlotPatterns(grid, savedPatterns);
-      GridAnalyzer.removeWord(targetSlot, grid);
-      this.usedWords.delete(word);
-    }
-    
-    console.log(`❌ No valid word found for slot ${targetSlot.id}`);
-    return false; // No valid word found for this slot
-  }
-  
   /**
-   * Select slot with minimum remaining values (MRV heuristic)
-   * Tie-breaking: prefer slots with more intersections
+   * Extract all word slots (across and down) from a crossword template
+   * Uses proper crossword numbering - each starting position gets a number
    */
-  private selectSlotMRV(grid: CrosswordGrid): CrosswordSlot | null {
-    let bestSlot: CrosswordSlot | null = null;
-    let minCandidates = Infinity;
-    let maxIntersections = -1;
+  private extractSlots(template: CrosswordMask): CrosswordSlot[] {
+    const slots: CrosswordSlot[] = [];
+    const numberedPositions = new Map<string, number>();
+    let clueNumber = 1;
     
-    for (const slot of grid.slots) {
-      // Skip slots that are already filled
-      if (slot.pattern.indexOf('?') === -1) continue;
-      
-      const candidateCount = slot.candidates?.length || 0;
-      
-      if (candidateCount === 0) {
-        // Slot with no candidates - immediate failure
-        return slot;
-      }
-      
-      const intersectionCount = GridAnalyzer.getIntersectingSlots(slot, grid.slots).length;
-      
-      // MRV: prefer slots with fewer candidates
-      // Tie-breaking: prefer slots with more intersections
-      if (candidateCount < minCandidates || 
-          (candidateCount === minCandidates && intersectionCount > maxIntersections)) {
-        bestSlot = slot;
-        minCandidates = candidateCount;
-        maxIntersections = intersectionCount;
+    // First pass: identify all starting positions and assign numbers
+    for (let row = 0; row < 5; row++) {
+      for (let col = 0; col < 5; col++) {
+        if (template.grid[row][col] === '.') {
+          let needsNumber = false;
+          
+          // Check if this starts an across word (3+ letters)
+          if (col === 0 || template.grid[row][col - 1] === '#') {
+            let acrossLength = 0;
+            for (let c = col; c < 5 && template.grid[row][c] === '.'; c++) {
+              acrossLength++;
+            }
+            if (acrossLength >= 3) needsNumber = true;
+          }
+          
+          // Check if this starts a down word (3+ letters)
+          if (row === 0 || template.grid[row - 1][col] === '#') {
+            let downLength = 0;
+            for (let r = row; r < 5 && template.grid[r][col] === '.'; r++) {
+              downLength++;
+            }
+            if (downLength >= 3) needsNumber = true;
+          }
+          
+          if (needsNumber) {
+            numberedPositions.set(`${row}-${col}`, clueNumber++);
+          }
+        }
       }
     }
     
-    return bestSlot;
+    // Second pass: create slots using the numbered positions
+    for (let row = 0; row < 5; row++) {
+      for (let col = 0; col < 5; col++) {
+        const posKey = `${row}-${col}`;
+        const number = numberedPositions.get(posKey);
+        
+        if (number && template.grid[row][col] === '.') {
+          // Check for across slot starting here
+          if (col === 0 || template.grid[row][col - 1] === '#') {
+            const cells: Array<{ row: number; col: number }> = [];
+            for (let c = col; c < 5 && template.grid[row][c] === '.'; c++) {
+              cells.push({ row, col: c });
+            }
+            
+            if (cells.length >= 3) {
+              slots.push({
+                id: `${number}A`,
+                direction: 'across',
+                startRow: row,
+                startCol: col,
+                length: cells.length,
+                cells: [...cells], // Create a copy
+                number,
+                pattern: '?'.repeat(cells.length),
+                candidates: []
+              });
+            }
+          }
+          
+          // Check for down slot starting here
+          if (row === 0 || template.grid[row - 1][col] === '#') {
+            const cells: Array<{ row: number; col: number }> = [];
+            for (let r = row; r < 5 && template.grid[r][col] === '.'; r++) {
+              cells.push({ row: r, col });
+            }
+            
+            if (cells.length >= 3) {
+              slots.push({
+                id: `${number}D`,
+                direction: 'down',
+                startRow: row,
+                startCol: col,
+                length: cells.length,
+                cells: [...cells], // Create a copy
+                number,
+                pattern: '?'.repeat(cells.length),
+                candidates: []
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    return slots;
   }
-  
+
   /**
-   * Update candidates for all unfilled slots using forward checking
+   * Initialize grid with black and white cells from template
    */
-  private updateAllCandidates(grid: CrosswordGrid): void {
-    for (const slot of grid.slots) {
-      if (slot.pattern.indexOf('?') !== -1) { // Slot not fully filled
+  private initializeGrid(template: CrosswordMask): GridCell[][] {
+    return template.grid.map(row => 
+      row.map(cell => ({
+        type: cell,
+        letter: undefined,
+        number: undefined
+      }))
+    );
+  }
+
+  /**
+   * Sort slots by constraint level - Most Constrained Variable (MCV) heuristic
+   * Prioritizes slots with fewer available word candidates
+   */
+  private sortSlotsByConstraints(slots: CrosswordSlot[]): CrosswordSlot[] {
+    // Calculate initial candidates for each slot
+    const slotsWithCandidates = slots.map(slot => {
       const candidates = this.wordBank.findWordsMatching({
         length: slot.length,
-        pattern: slot.pattern.toLowerCase()
+        pattern: slot.pattern
       });
+      
+      return {
+        ...slot,
+        candidates: candidates.slice(0, 100) // Limit for performance
+      };
+    });
+    
+    // Sort by number of candidates (ascending) and then by length (descending)
+    return slotsWithCandidates.sort((a, b) => {
+      const candidateDiff = a.candidates!.length - b.candidates!.length;
+      if (candidateDiff !== 0) return candidateDiff;
+      return b.length - a.length; // Prefer longer words for tie-breaking
+    });
+  }
+
+  /**
+   * Backtracking algorithm to fill the crossword grid with randomized word selection
+   * Uses Constraint Satisfaction with forward checking and alphabet diversity
+   */
+  private async backtrackFill(
+    grid: GridCell[][],
+    slots: CrosswordSlot[],
+    assignments: Map<string, string>,
+    slotIndex = 0,
+    backtrackCount = 0
+  ): Promise<{ filledGrid: GridCell[][]; wordPlacements: Map<string, string> } | null> {
+    
+    // Base case: all slots filled
+    if (slotIndex >= slots.length) {
+      return {
+        filledGrid: grid.map(row => row.map(cell => ({ ...cell }))),
+        wordPlacements: new Map(assignments)
+      };
+    }
+    
+    // Prevent infinite backtracking
+    if (backtrackCount > this.maxBacktracks) {
+      return null;
+    }
+    
+    const currentSlot = slots[slotIndex];
+    
+    // Safety check: ensure slot has required properties
+    if (!currentSlot || !currentSlot.cells || currentSlot.cells.length === 0) {
+      console.error('Invalid slot at index', slotIndex, currentSlot);
+      return null;
+    }
+    
+    const currentPattern = this.getSlotPattern(grid, currentSlot);
+    
+    // Get candidate words that match current pattern
+    const allCandidates = this.wordBank.findWordsMatching({
+      length: currentSlot.length,
+      pattern: currentPattern
+    });
+    
+    // Filter out recently used words to ensure variety
+    const wordHistory = getWordHistory();
+    const freshCandidates = wordHistory.filterRecentWords(allCandidates, 10);
+    
+    // Use fresh candidates if available, otherwise fall back to all candidates
+    const baseCandidates = freshCandidates.length > 0 ? freshCandidates : allCandidates;
+    
+    // Diversify word selection for better alphabet coverage
+    const diversifiedCandidates = this.diversifyWordSelection(baseCandidates, 50);
+    
+    // Try each candidate word
+    for (const candidate of diversifiedCandidates) {
+      const word = candidate.word.toLowerCase();
+      
+      // Skip if word already used
+      if (Array.from(assignments.values()).includes(word)) {
+        continue;
+      }
+      
+      // Check if word placement is valid (intersections)
+      if (this.isValidPlacement(grid, currentSlot, word, assignments)) {
+        // Place the word
+        this.placeWord(grid, currentSlot, word);
+        assignments.set(currentSlot.id, word);
         
-        // Filter candidates that would create valid intersections
-        slot.candidates = candidates
-          .map(entry => entry.word)
-          .filter(word => GridAnalyzer.isValidPlacement(word, slot, grid));
-      } else {
-        slot.candidates = []; // Slot already filled
+        // Recursively try to fill remaining slots
+        const result = await this.backtrackFill(
+          grid, 
+          slots, 
+          assignments, 
+          slotIndex + 1, 
+          backtrackCount
+        );
+        
+        if (result) {
+          return result;
+        }
+        
+        // Backtrack: remove the word
+        this.removeWord(grid, currentSlot, assignments, slots);
+        assignments.delete(currentSlot.id);
       }
     }
-  }
-  
-  /**
-   * Save current slot patterns for backtracking
-   */
-  private saveSlotPatterns(grid: CrosswordGrid): Map<string, string> {
-    const patterns = new Map<string, string>();
-    for (const slot of grid.slots) {
-      patterns.set(slot.id, slot.pattern);
+    
+    // No valid word found, backtrack
+    if (slotIndex === 0) {
+      // Can't backtrack further, no solution found
+      return null;
     }
-    return patterns;
+    
+    return await this.backtrackFill(
+      grid, 
+      slots, 
+      assignments, 
+      slotIndex - 1, 
+      backtrackCount + 1
+    );
   }
-  
+
   /**
-   * Restore slot patterns from saved state
+   * Diversify word selection for better alphabet coverage
+   * Mixes high-frequency words with random selections for variety
    */
-  private restoreSlotPatterns(grid: CrosswordGrid, savedPatterns: Map<string, string>): void {
-    for (const slot of grid.slots) {
-      const savedPattern = savedPatterns.get(slot.id);
-      if (savedPattern) {
-        slot.pattern = savedPattern;
+  private diversifyWordSelection<T extends { word: string; frequency: number }>(
+    candidates: T[], 
+    maxCandidates = 50
+  ): T[] {
+    if (candidates.length <= maxCandidates) {
+      return this.shuffleArray([...candidates]);
+    }
+
+    // Strategy: Mix high-frequency words with random selections for diversity
+    const sortedByFreq = [...candidates].sort((a, b) => b.frequency - a.frequency);
+    
+    // Take top 30% for quality, but shuffle them
+    const topTier = this.shuffleArray(sortedByFreq.slice(0, Math.floor(candidates.length * 0.3)));
+    
+    // Take random 70% from remaining for diversity
+    const remaining = sortedByFreq.slice(Math.floor(candidates.length * 0.3));
+    const randomTier = this.shuffleArray(remaining).slice(0, maxCandidates - topTier.length);
+    
+    // Combine and shuffle the final selection
+    return this.shuffleArray([...topTier, ...randomTier]).slice(0, maxCandidates);
+  }
+
+  /**
+   * Fisher-Yates shuffle algorithm for true randomization
+   */
+  private shuffleArray<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
+
+  /**
+   * Get current pattern for a slot based on grid state
+   */
+  private getSlotPattern(grid: GridCell[][], slot: CrosswordSlot): string {
+    return slot.cells
+      .map(({ row, col }) => grid[row][col].letter || '?')
+      .join('');
+  }
+
+  /**
+   * Check if placing a word in a slot creates valid intersections
+   */
+  private isValidPlacement(
+    grid: GridCell[][],
+    slot: CrosswordSlot,
+    word: string,
+    assignments: Map<string, string>
+  ): boolean {
+    for (let i = 0; i < slot.cells.length; i++) {
+      const { row, col } = slot.cells[i];
+      const letter = word[i].toLowerCase();
+      const currentLetter = grid[row][col].letter;
+      
+      // If cell already has a letter, it must match exactly
+      if (currentLetter && currentLetter.toLowerCase() !== letter) {
+        return false;
+      }
+      
+      // Additional validation: check bounds
+      if (row < 0 || row >= 5 || col < 0 || col >= 5) {
+        return false;
+      }
+      
+      // Make sure we're not placing in a black cell
+      if (grid[row][col].type === '#') {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Place a word in the grid
+   */
+  private placeWord(grid: GridCell[][], slot: CrosswordSlot, word: string): void {
+    slot.cells.forEach(({ row, col }, index) => {
+      grid[row][col].letter = word[index].toLowerCase();
+      if (index === 0) {
+        grid[row][col].number = slot.number;
+      }
+    });
+  }
+
+  /**
+   * Remove a word from the grid (but preserve intersecting letters from other words)
+   */
+  private removeWord(grid: GridCell[][], slot: CrosswordSlot, assignments: Map<string, string>, allSlots: CrosswordSlot[]): void {
+    slot.cells.forEach(({ row, col }, index) => {
+      // Check if this cell is part of another placed word
+      const isPartOfOtherWord = allSlots.some(otherSlot => {
+        if (otherSlot.id === slot.id) return false; // Skip the current slot
+        if (!assignments.has(otherSlot.id)) return false; // Skip unplaced words
         
-        // Update grid cells to match pattern
-        for (let i = 0; i < slot.cells.length; i++) {
-          const cell = slot.cells[i];
-          const letter = savedPattern[i];
-          grid.cells[cell.row][cell.col].letter = letter === '?' ? undefined : letter;
+        return otherSlot.cells.some(cell => cell.row === row && cell.col === col);
+      });
+      
+      // Only remove letter if it's not part of another placed word
+      if (!isPartOfOtherWord) {
+        grid[row][col].letter = undefined;
+      }
+      
+      // Only remove number if this is the starting cell and no other word starts here
+      if (index === 0) {
+        const otherWordStartsHere = allSlots.some(otherSlot => {
+          if (otherSlot.id === slot.id) return false;
+          if (!assignments.has(otherSlot.id)) return false;
+          return otherSlot.startRow === row && otherSlot.startCol === col;
+        });
+        
+        if (!otherWordStartsHere) {
+          grid[row][col].number = undefined;
         }
       }
-    }
-  }
-  
-  /**
-   * Build the final puzzle result
-   */
-  private buildPuzzleResult(grid: CrosswordGrid, templateId: string, seed?: number): CrosswordPuzzle {
-    const size = 5;
-    const letterGrid: string[][] = [];
-    
-    // Build letter grid
-    for (let row = 0; row < size; row++) {
-      letterGrid[row] = [];
-      for (let col = 0; col < size; col++) {
-        const cell = grid.cells[row][col];
-        letterGrid[row][col] = cell.type === '#' ? '#' : (cell.letter || '');
-      }
-    }
-    
-    // Build across entries
-    const across = grid.acrossSlots.map(slot => ({
-      num: slot.number,
-      answer: slot.pattern.toUpperCase(),
-      row: slot.startRow,
-      col: slot.startCol,
-      length: slot.length,
-      pattern: slot.pattern
-    }));
-    
-    // Build down entries  
-    const down = grid.downSlots.map(slot => ({
-      num: slot.number,
-      answer: slot.pattern.toUpperCase(),
-      row: slot.startRow,
-      col: slot.startCol,
-      length: slot.length,
-      pattern: slot.pattern
-    }));
-    
-    return {
-      grid: letterGrid,
-      across,
-      down,
-      meta: {
-        templateId,
-        seed,
-        generationTime: Date.now()
-      }
-    };
+    });
   }
 }
 
-// Singleton instance
+// Export singleton instance
 let generatorInstance: CrosswordGenerator | null = null;
 
-/**
- * Get the singleton CrosswordGenerator instance
- */
 export function getCrosswordGenerator(): CrosswordGenerator {
   if (!generatorInstance) {
     generatorInstance = new CrosswordGenerator();

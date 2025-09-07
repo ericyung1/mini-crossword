@@ -21,7 +21,7 @@ export interface CrosswordSlot {
   cells: Array<{ row: number; col: number }>;
   number: number; // Clue number
   pattern: string; // Current pattern with ? for empty cells
-  candidates?: string[]; // Available words for this slot
+  candidates?: any[]; // Available words for this slot (WordEntry[] or string[])
 }
 
 export interface CrosswordGrid {
@@ -31,42 +31,4 @@ export interface CrosswordGrid {
   downSlots: CrosswordSlot[];
 }
 
-export interface CrosswordPuzzle {
-  grid: string[][]; // Final letter grid
-  across: Array<{
-    num: number;
-    answer: string;
-    row: number;
-    col: number;
-    length: number;
-    pattern: string;
-  }>;
-  down: Array<{
-    num: number;
-    answer: string;
-    row: number;
-    col: number;
-    length: number;
-    pattern: string;
-  }>;
-  meta: {
-    templateId: string;
-    seed?: number;
-    generationTime: number;
-  };
-}
-
-export interface GenerationOptions {
-  seed?: number;
-  templateId?: string; // If not specified, random template
-  maxAttempts?: number;
-  timeoutMs?: number;
-}
-
-export interface GenerationResult {
-  success: boolean;
-  puzzle?: CrosswordPuzzle;
-  error?: string;
-  attempts: number;
-  duration: number;
-}
+// Removed unused puzzle generation types - will be added back when building the generator

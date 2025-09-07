@@ -1,54 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateAllTemplates, getTemplateById, getRandomTemplate, CROSSWORD_TEMPLATES } from '@/lib/templates';
 import { getCrosswordGenerator } from '@/lib/crossword-generator';
-import { validateAllTemplates } from '@/lib/templates';
 
 export async function POST(request: NextRequest) {
   try {
-    const { seed, templateId, maxAttempts, timeoutMs } = await request.json().catch(() => ({}));
+    const { templateId, generateClues = true } = await request.json().catch(() => ({}));
     
-    // Validate templates on first use
-    const { valid, invalid } = validateAllTemplates();
-    if (invalid.length > 0) {
-      console.warn('Invalid templates detected:', invalid);
-    }
+    // Get template
+    const template = templateId 
+      ? getTemplateById(templateId) 
+      : getRandomTemplate();
     
-    const generator = getCrosswordGenerator();
-    const startTime = performance.now();
-    
-    const result = await generator.generate({
-      seed: typeof seed === 'number' ? seed : undefined,
-      templateId: typeof templateId === 'string' ? templateId : undefined,
-      maxAttempts: typeof maxAttempts === 'number' ? maxAttempts : 50,
-      timeoutMs: typeof timeoutMs === 'number' ? timeoutMs : 10000
-    });
-    
-    const duration = performance.now() - startTime;
-    
-    if (result.success && result.puzzle) {
-      return NextResponse.json({
-        ...result.puzzle,
-        meta: {
-          ...result.puzzle.meta,
-          generationTime: Math.round(duration * 100) / 100,
-          attempts: result.attempts,
-          validTemplates: valid.length,
-          invalidTemplates: invalid.length
-        }
-      });
-    } else {
+    if (!template) {
       return NextResponse.json(
-        { 
-          error: result.error || 'Generation failed',
-          attempts: result.attempts,
-          duration: Math.round(result.duration * 100) / 100
-        },
-        { status: 500 }
+        { error: `Template ${templateId || 'random'} not found` },
+        { status: 404 }
       );
     }
+    
+    // Generate crossword puzzle
+    const generator = getCrosswordGenerator();
+    const puzzle = await generator.generateCrossword(template, generateClues);
+    
+    return NextResponse.json({
+      success: true,
+      puzzle,
+      message: `Generated crossword using template "${template.name}"`,
+      stats: {
+        generationTime: puzzle.generationTime,
+        totalWords: puzzle.words.length,
+        acrossWords: puzzle.acrossSlots.length,
+        downWords: puzzle.downSlots.length,
+        templateId: template.id
+      }
+    });
   } catch (error) {
     console.error('Error generating crossword:', error);
     return NextResponse.json(
-      { error: 'Failed to generate crossword' },
+      { 
+        error: 'Failed to generate crossword puzzle',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
@@ -56,22 +48,41 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    // GET request generates a random puzzle
-    const generator = getCrosswordGenerator();
-    const result = await generator.generate();
+    const { valid, invalid } = validateAllTemplates();
     
-    if (result.success && result.puzzle) {
-      return NextResponse.json(result.puzzle);
-    } else {
-      return NextResponse.json(
-        { error: result.error || 'Generation failed' },
-        { status: 500 }
-      );
-    }
+    return NextResponse.json({
+      message: 'NYT-Style Mini Crossword Generator - Ready!',
+      algorithm: {
+        name: 'Backtracking with Constraint Satisfaction',
+        description: 'Advanced algorithm using Most Constrained Variable heuristic and forward checking',
+        features: [
+          'Slot detection with flood-fill algorithm',
+          'Constraint-based word placement',
+          'Intersection validation',
+          'Frequency-optimized word selection',
+          'OpenAI-generated NYT-style clues'
+        ]
+      },
+      framework: {
+        totalTemplates: CROSSWORD_TEMPLATES.length,
+        validTemplates: valid.length,
+        invalidTemplates: invalid.length,
+        templates: CROSSWORD_TEMPLATES.map(t => ({
+          id: t.id,
+          name: t.name,
+          description: t.description
+        })),
+        status: 'Production Ready - Algorithm Implemented'
+      },
+      usage: {
+        generate: 'POST /api/generate with optional { templateId, generateClues }',
+        example: '{ "templateId": "c1", "generateClues": true }'
+      }
+    });
   } catch (error) {
-    console.error('Error generating crossword:', error);
+    console.error('Error in generate endpoint:', error);
     return NextResponse.json(
-      { error: 'Failed to generate crossword' },
+      { error: 'Failed to get framework status' },
       { status: 500 }
     );
   }

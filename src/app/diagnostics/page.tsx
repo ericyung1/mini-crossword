@@ -187,7 +187,7 @@ export default function DiagnosticsPage() {
           </div>
           
           <div className="text-sm text-gray-600">
-            <p><strong>Pattern syntax:</strong> Use ? for any letter (e.g., a?e?? finds 5-letter words starting with 'a', 'e' in 3rd position)</p>
+            <p><strong>Pattern syntax:</strong> Use ? for any letter (e.g., a?e?? finds 5-letter words starting with &apos;a&apos;, &apos;e&apos; in 3rd position)</p>
             <p><strong>Performance target:</strong> &lt;5ms per query</p>
           </div>
         </div>
