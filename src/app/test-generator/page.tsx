@@ -148,6 +148,45 @@ export default function TestGeneratorPage() {
     }
   };
 
+  const generateDiagnosticPuzzle = async () => {
+    setLoading(true);
+    setError(null);
+    
+    console.log('🔬 Starting diagnostic test with simple template - check browser console!');
+    
+    try {
+      const response = await fetch('/api/generate-diagnostic');
+      const data = await response.json();
+      
+      if (response.ok) {
+        setPuzzle(data);
+        setStats(prev => ({
+          successes: prev.successes + 1,
+          failures: prev.failures,
+          averageTime: (prev.averageTime * prev.successes + (data.meta.duration || 0)) / (prev.successes + 1),
+          averageAttempts: (prev.averageAttempts * prev.successes + (data.meta.attempts || 1)) / (prev.successes + 1)
+        }));
+        console.log('✅ Diagnostic test succeeded!');
+      } else {
+        setError(data.error || 'Diagnostic generation failed');
+        setStats(prev => ({
+          ...prev,
+          failures: prev.failures + 1
+        }));
+        console.log('❌ Diagnostic test failed:', data.error);
+      }
+    } catch (err) {
+      setError('Network error');
+      setStats(prev => ({
+        ...prev,
+        failures: prev.failures + 1
+      }));
+      console.log('💥 Diagnostic test network error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const runBenchmark = async () => {
     setLoading(true);
     setError(null);
@@ -247,6 +286,13 @@ export default function TestGeneratorPage() {
               className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
             >
               {loading ? 'Testing...' : 'Test Unlimited (No Timeout)'}
+            </button>
+            <button
+              onClick={() => generateDiagnosticPuzzle()}
+              disabled={loading}
+              className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50"
+            >
+              {loading ? 'Testing...' : 'Diagnostic (Simple Template)'}
             </button>
             <button
               onClick={runBenchmark}
