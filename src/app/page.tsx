@@ -9,17 +9,25 @@ export default function Home() {
           NYT-style 5×5 crossword puzzle generator
         </p>
         <div className="mt-8 text-center">
-          <p className="text-lg">🧩 Phase 1 Complete!</p>
+          <p className="text-lg">🧩 Phase 2 Complete!</p>
           <p className="text-sm mt-2 text-gray-500">
-            Word bank parsing and indexing system ready
+            Crossword generation with MRV heuristic and forward checking
           </p>
-          <div className="mt-6">
-            <a 
-              href="/diagnostics" 
-              className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              🔍 Test Word Bank Diagnostics
-            </a>
+          <div className="mt-6 space-y-4">
+            <div>
+              <a 
+                href="/test-generator" 
+                className="inline-block px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mr-4"
+              >
+                🎯 Test Crossword Generator
+              </a>
+              <a 
+                href="/diagnostics" 
+                className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                🔍 Word Bank Diagnostics
+              </a>
+            </div>
           </div>
         </div>
       </div>
